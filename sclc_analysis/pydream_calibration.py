@@ -47,7 +47,7 @@ TKO_ne_nev2_nonne_std = [0.152576600276884, 0.147927688661517, 0.031684600453998
 
 like_pct_data = norm(loc=TKO_ne_nev2_nonne_mean, scale=TKO_ne_nev2_nonne_std)
 
-obs_list = ['NE_obs','NEv2_obs','NonNE_obs']
+like_steady_state = norm(0, 10)
 
 # PRIOR
 sp_k_NE_div_0 = SampledParam(norm, loc=np.log10(.428), scale=.25)
@@ -123,21 +123,23 @@ def likelihood(position):
         return -np.inf
     elif all_lessthan1: #smallest size in SCLC allografts (Lim et al) 1cm^3 (~10^8 cells), largest ~3.5cm^3 (~4*10^8)
         print('less than 1 cell in at lead one species')
-        return np.inf*-1
+        return -np.inf
     else:
         # Return -inf if any species trajectory hasn't reached steady state
+        e2 = 0
         for sp in range(len(model.species)):
             sp_tr = sim_data[:, sp]
             derivative = np.diff(sp_tr) / dt
-            equilibrated = np.allclose(derivative[-50:], 0, atol=1e-4)
-            if not equilibrated:
+            equilibrated = np.isclose(derivative[-50:], 0, atol=1)
+            if not np.any(equilibrated):
                 print(derivative[-50:])
                 print('not equilibrated')
-                return -np.inf
+                e2 += np.size(equilibrated) - np.count_nonzero(equilibrated)
+
         # Obtain percentages of last time points to compare to data
         species_pctg = sim_data[-1, :] / end_point_total_cells
         # Score
-        total_cost = np.sum(like_pct_data.logpdf(species_pctg))
+        total_cost = np.sum(like_pct_data.logpdf(species_pctg)) + like_steady_state.logpdf(e2)
         if np.isnan(total_cost):
             total_cost = -np.inf
         return total_cost
@@ -145,21 +147,12 @@ def likelihood(position):
 # Run pydream
 
 
-niterations = 100000
-nchains = 4
+niterations = 500000
+nchains = 5
 converged = False
-
-starts = []
-log10_original_values = np.log10(param_values[rates_mask])
-for chain in range(nchains):
-    start_position = log10_original_values + np.random.uniform(-0.25, 0.25, size=np.shape(log10_original_values))
-    starts.append(start_position)
-
-
 if __name__ == '__main__':
     sampled_params, log_ps = run_dream(parameters=sampled_params_list,
                                        likelihood=likelihood,
-                                       start=starts,
                                        niterations=niterations,
                                        nchains=nchains,
                                        multitry=False,

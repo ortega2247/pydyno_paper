@@ -103,11 +103,13 @@ TOLERANCE = 1e-4
 def likelihood(position):
     Y = np.copy(position)
     param_values[rates_mask] = 10 ** Y
-    signal.alarm(300)
+    signal.alarm(30)
     try:
         sim = solver.run(param_values=param_values, tspan=tspan).species
         sim_data = np.array(sim)
     except TimeoutException as exc:
+        return -np.inf
+    except ZeroDivisionError as exc:
         return -np.inf
     else:
         signal.alarm(0)
@@ -147,7 +149,7 @@ def likelihood(position):
 # Run pydream
 
 
-niterations = 500000
+niterations = 10000
 nchains = 5
 converged = False
 if __name__ == '__main__':
@@ -161,14 +163,14 @@ if __name__ == '__main__':
                                        snooker_=0.4,
                                        adapt_gamma=False,
                                        history_thin=1,
-                                       model_name='dreamzs_5chain_NEv2_Sage_NM',
+                                       model_name='dreamzs_5chain_NEv2_Sage_test_NM',
                                        verbose=True)
     total_iterations = niterations
     # Save sampling output (sampled parameter values and their corresponding logps).
     for chain in range(len(sampled_params)):
-        np.save('dreamzs_5chain_NEv2_Sage_NM_sampled_params_chain_' + str(chain)+'_'+str(total_iterations), sampled_params[chain])
-        np.save('dreamzs_5chain_NEv2_Sage_NM_logps_chain_' + str(chain)+'_'+str(total_iterations), log_ps[chain])
+        np.save('dreamzs_5chain_NEv2_Sage_test_NM_sampled_params_chain_' + str(chain)+'_'+str(total_iterations), sampled_params[chain])
+        np.save('dreamzs_5chain_NEv2_Sage_test_NM_logps_chain_' + str(chain)+'_'+str(total_iterations), log_ps[chain])
 
     GR = Gelman_Rubin(sampled_params)
     print('At iteration: ',total_iterations,' GR = ',GR)
-    np.savetxt('dreamzs_5chain_NEv2_Sage_NM_GelmanRubin_iteration_'+str(total_iterations)+'.txt', GR)
+    np.savetxt('dreamzs_5chain_NEv2_Sage_test_NM_GelmanRubin_iteration_'+str(total_iterations)+'.txt', GR)

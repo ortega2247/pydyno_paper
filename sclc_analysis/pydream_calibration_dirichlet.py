@@ -73,26 +73,28 @@ sampled_params_list.append(sp_KD_Kx_nonNE_div)
 sp_k_nonNe_die = SampledParam(norm, loc=np.log10(0.365), scale=.5)
 sampled_params_list.append(sp_k_nonNe_die)
 
-sp_kf_diff_ne_nev2 = SampledParam(uniform, loc=np.log10(0.05), scale=2.5)
+sp_kf_diff_ne_nev2 = SampledParam(norm, loc=np.log10(0.05), scale=2.5)
 sampled_params_list.append(sp_kf_diff_ne_nev2)
-sp_kr_diff_ne_nev2 = SampledParam(uniform, loc=np.log10(0.05), scale=2.5)
+sp_kr_diff_ne_nev2 = SampledParam(norm, loc=np.log10(0.05), scale=2.5)
 sampled_params_list.append(sp_kr_diff_ne_nev2)
 
-sp_kf_diff_nev2_nonNe = SampledParam(uniform, loc=np.log10(0.05), scale=2.5)
+sp_kf_diff_nev2_nonNe = SampledParam(norm, loc=np.log10(0.05), scale=2.5)
 sampled_params_list.append(sp_kf_diff_nev2_nonNe)
 
 # Likelihood function
 
-TOLERANCE = 1e-4
+
 # USER must define a likelihood function!
 def likelihood(position):
     Y = np.copy(position)
     param_values[rates_mask] = 10 ** Y
-    signal.alarm(300)
+    signal.alarm(30)
     try:
         sim = solver.run(param_values=param_values, tspan=tspan).species
         sim_data = np.array(sim)
     except TimeoutException as exc:
+        return -np.inf
+    except ZeroDivisionError:
         return -np.inf
     else:
         signal.alarm(0)
@@ -124,7 +126,7 @@ def likelihood(position):
         # Obtain percentages of last time points to compare to data
         species_pctg = sim_data[-1, :] / end_point_total_cells
         # Score
-        total_cost = np.sum(like_pct_data.logpdf(species_pctg)) + like_steady_state.logpdf(e2)
+        total_cost = np.sum(like_pct_data.logpdf(species_pctg[::-1])) + like_steady_state.logpdf(e2)
         if np.isnan(total_cost):
             total_cost = -np.inf
         return total_cost
@@ -132,7 +134,7 @@ def likelihood(position):
 # Run pydream
 
 
-niterations = 500000
+niterations = 100000
 nchains = 5
 converged = False
 if __name__ == '__main__':

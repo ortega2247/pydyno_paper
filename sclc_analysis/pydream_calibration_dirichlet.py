@@ -22,7 +22,7 @@ def handler(signum, frame):
 signal.signal(signal.SIGALRM, handler)
 
 # Initialize PySB solver object for running simulations.  Simulation timespan should match experimental data.
-tspan = np.linspace(0, 60, 1001)
+tspan = np.linspace(0, 100, 501)
 dt = tspan[1] - tspan[0]
 solver = ScipyOdeSimulator(model, integrator='lsoda', compiler='cython')
 param_values = np.array([p.value for p in model.parameters])
@@ -73,12 +73,12 @@ sampled_params_list.append(sp_KD_Kx_nonNE_div)
 sp_k_nonNe_die = SampledParam(norm, loc=np.log10(0.365), scale=.5)
 sampled_params_list.append(sp_k_nonNe_die)
 
-sp_kf_diff_ne_nev2 = SampledParam(norm, loc=np.log10(0.05), scale=2.5)
+sp_kf_diff_ne_nev2 = SampledParam(uniform, loc=np.log10(0.05), scale=2.5)
 sampled_params_list.append(sp_kf_diff_ne_nev2)
-sp_kr_diff_ne_nev2 = SampledParam(norm, loc=np.log10(0.05), scale=2.5)
+sp_kr_diff_ne_nev2 = SampledParam(uniform, loc=np.log10(0.05), scale=2.5)
 sampled_params_list.append(sp_kr_diff_ne_nev2)
 
-sp_kf_diff_nev2_nonNe = SampledParam(norm, loc=np.log10(0.05), scale=2.5)
+sp_kf_diff_nev2_nonNe = SampledParam(uniform, loc=np.log10(0.05), scale=2.5)
 sampled_params_list.append(sp_kf_diff_nev2_nonNe)
 
 # Likelihood function
@@ -101,7 +101,8 @@ def likelihood(position):
     all_lessthan1 = np.any(sim_data[-1, :] < 1)
 
     # if there aren't enough cells, or if the end of the sim gets to NaNs (because it grew too fast)
-    end_point_total_cells = np.sum(sim_data[-1, :])
+    total_cells_time_point = np.sum(sim_data, axis=1)
+    end_point_total_cells = total_cells_time_point[-1]
     if end_point_total_cells < 1000000:
         print('not enough cells ' + str(end_point_total_cells))
         return -np.inf
@@ -115,8 +116,8 @@ def likelihood(position):
         # Return -inf if any species trajectory hasn't reached steady state
         e2 = 0
         for sp in range(len(model.species)):
-            sp_tr = sim_data[:, sp]
-            derivative = np.diff(sp_tr) / dt
+            sp_time_pctg = sim_data[:, sp] / total_cells_time_point
+            derivative = np.diff(sp_time_pctg) / dt
             equilibrated = np.isclose(derivative[-50:], 0, atol=1)
             if not np.any(equilibrated):
                 # print(derivative[-50:])
@@ -137,6 +138,7 @@ def likelihood(position):
 niterations = 100000
 nchains = 5
 converged = False
+model_name = 'dreamzs_5chain_NEv2_Sage_NM'
 if __name__ == '__main__':
     sampled_params, log_ps = run_dream(parameters=sampled_params_list,
                                        likelihood=likelihood,
@@ -148,14 +150,14 @@ if __name__ == '__main__':
                                        snooker_=0.4,
                                        adapt_gamma=False,
                                        history_thin=1,
-                                       model_name='dreamzs_5chain_NEv2_Sage_NM',
+                                       model_name=model_name,
                                        verbose=True)
     total_iterations = niterations
     # Save sampling output (sampled parameter values and their corresponding logps).
     for chain in range(len(sampled_params)):
-        np.save('dreamzs_5chain_NEv2_Sage_NM_sampled_params_chain_' + str(chain)+'_'+str(total_iterations), sampled_params[chain])
-        np.save('dreamzs_5chain_NEv2_Sage_NM_logps_chain_' + str(chain)+'_'+str(total_iterations), log_ps[chain])
+        np.save(model_name + '_sampled_params_chain_' + str(chain)+'_'+str(total_iterations), sampled_params[chain])
+        np.save(model_name + '_logps_chain_' + str(chain)+'_'+str(total_iterations), log_ps[chain])
 
     GR = Gelman_Rubin(sampled_params)
     print('At iteration: ',total_iterations,' GR = ',GR)
-    np.savetxt('dreamzs_5chain_NEv2_Sage_NM_GelmanRubin_iteration_'+str(total_iterations)+'.txt', GR)
+    np.savetxt(model_name + '_GelmanRubin_iteration_'+str(total_iterations)+'.txt', GR)

@@ -103,8 +103,6 @@ def rhs(y, t, p):
 if __name__ ==  '__main__':
 
     with pm.Model() as pysb_model:
-        sampled_parameter = [pm.Normal(f'par_{idx}', mu=pa.value, sigma=2) if pa in rate_params else pa.value
-                             for idx, pa in enumerate(model.parameters)]
 
         sampled_params_list = list()
 
@@ -161,7 +159,7 @@ if __name__ ==  '__main__':
             n_theta=len(model.parameters),
             t0=0
         )(
-            y0=initials, theta=sampled_parameter
+            y0=initials, theta=sampled_params_list
         )
         ne = y_hat.T[0][-1]
         nev2 = y_hat.T[1][-1]

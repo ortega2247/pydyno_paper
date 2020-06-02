@@ -1,4 +1,5 @@
 import sys
+
 sys.path.append('../')
 import re
 import os
@@ -33,30 +34,31 @@ ode_mat = sympy.Matrix(model.odes).subs(eqn_subs)
 
 
 def _eqn_substitutions(eqns, _model):
-         """String substitutions on the sympy C code for the ODE RHS and
+    """String substitutions on the sympy C code for the ODE RHS and
          Jacobian functions to use appropriate terms for variables and
          parameters."""
-         # Substitute 'y[i]' for 'si'
-         eqns = re.sub(r'\b__s(\d+)\b',
-                       lambda m: 'y[%s]' % (int(m.group(1))),
-                       eqns)
+    # Substitute 'y[i]' for 'si'
+    eqns = re.sub(r'\b__s(\d+)\b',
+                  lambda m: 'y[%s]' % (int(m.group(1))),
+                  eqns)
 
-         # Substitute 'p[i]' for any named parameters
-         for i, p in enumerate(_model.parameters):
-             eqns = re.sub(r'\b(%s)\b' % p.name, 'p[%d]' % i, eqns)
-         for i, p in enumerate(_model._derived_parameters):
-             eqns = re.sub(r'\b(%s)\b' % p.name,
-                           'p[%d]' % (i + len(_model.parameters)), eqns)
-         return eqns
+    # Substitute 'p[i]' for any named parameters
+    for i, p in enumerate(_model.parameters[1:]):
+        eqns = re.sub(r'\b(%s)\b' % p.name, 'p[%d]' % i, eqns)
+    for i, p in enumerate(_model._derived_parameters):
+        eqns = re.sub(r'\b(%s)\b' % p.name,
+                      'p[%d]' % (i + len(_model.parameters)), eqns)
+    return eqns
 
-eqn_repr=sympy.ccode
+
+eqn_repr = sympy.ccode
 code_eqs = '\n\t'.join(['ydot[%d] = %s;' %
-                                   (i, eqn_repr(o))
-                                   for i, o in enumerate(ode_mat)])
+                        (i, eqn_repr(o))
+                        for i, o in enumerate(ode_mat)])
 code_eqs = str(_eqn_substitutions(code_eqs, model))
 code_eqs = 'def rhs(y,t,p):\n\tydot=[0]*3\n\t' + code_eqs + '\n\treturn ydot'
-print(code_eqs)
-exec(code_eqs)
+# print(code_eqs)
+# exec(code_eqs)
 
 tspan = np.linspace(0, 100, 501)
 rate_params = model.parameters_rules()
@@ -91,19 +93,17 @@ initials = [_sp_initial(model, i) for i in model.species]
 
 def rhs(y, t, p):
     ydot = [0] * 3
-    ydot[0] = p[18] * y[1] + y[0] * (p[3] * p[1] + p[2] * y[2]) / (p[3] + y[2]) - y[0] * (p[6] * p[4] + p[5] * y[2]) / (
-                p[6] + y[2]) + (-1) * (p[17] * y[0]);
-    ydot[1] = p[17] * y[0] + y[1] * (p[9] * p[7] + p[8] * y[2]) / (p[9] + y[2]) - y[1] * (
-                p[12] * p[10] + p[11] * y[2]) / (p[12] + y[2]) + (-1) * (p[19] * y[1]) + (-1) * (p[18] * y[1]);
-    ydot[2] = p[19] * y[1] + y[2] * (p[15] * p[13] + p[14] * (y[0] + y[1])) / (p[15] + y[0] + y[1]) + (-1) * (
-                p[16] * y[2]);
+    ydot[0] = p[17] * y[1] + y[0] * (p[2] * p[0] + p[1] * y[2]) / (p[2] + y[2]) - y[0] * (p[5] * p[3] + p[4] * y[2]) / (
+                p[5] + y[2]) + (-1) * (p[16] * y[0]);
+    ydot[1] = p[16] * y[0] + y[1] * (p[8] * p[6] + p[7] * y[2]) / (p[8] + y[2]) - y[1] * (
+                p[11] * p[9] + p[10] * y[2]) / (p[11] + y[2]) + (-1) * (p[18] * y[1]) + (-1) * (p[17] * y[1]);
+    ydot[2] = p[18] * y[1] + y[2] * (p[14] * p[12] + p[13] * (y[0] + y[1])) / (p[14] + y[0] + y[1]) + (-1) * (
+                p[15] * y[2]);
     return ydot
 
 
-if __name__ ==  '__main__':
-
+if __name__ == '__main__':
     with pm.Model() as pysb_model:
-
         sampled_params_list = list()
 
         sp_k_NE_div_0 = pm.Normal('sp_k_NE_div_0', mu=np.log10(.428), sigma=.25)
@@ -156,7 +156,7 @@ if __name__ ==  '__main__':
             func=rhs,
             times=tspan,
             n_states=len(model.species),
-            n_theta=len(model.parameters),
+            n_theta=len(model.parameters) - 1,
             t0=0
         )(
             y0=initials, theta=sampled_params_list
@@ -166,10 +166,11 @@ if __name__ ==  '__main__':
         nonne = y_hat.T[2][-1]
         a0 = ne + nev2 + nonne
 
-        e1 = pm.Dirichlet('percentages', a=pm.math.stack([nonne/a0, nev2/a0, ne/a0]), shape=3, observed=data_3states)
+        e1 = pm.Dirichlet('percentages', a=pm.math.stack([nonne / a0, nev2 / a0, ne / a0]), shape=3,
+                          observed=data_3states)
 
-    #     prior = pm.sample_prior_predictive()
-        trace = pm.sample(20, tune=10, cores=4,  init='adapt_diag')
+        #     prior = pm.sample_prior_predictive()
+        trace = pm.sample(20, tune=10, cores=4, init='adapt_diag')
     #     posterior_predictive = pm.sample_posterior_predictive(trace)
 
 # def SIR(y, t, p):
